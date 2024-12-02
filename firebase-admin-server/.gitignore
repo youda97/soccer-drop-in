@@ -1,0 +1,36 @@
+# Node modules
+node_modules/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+*.log.*
+logs/
+
+# Build and temp files
+dist/
+build/
+*.tsbuildinfo
+*.js.map
+*.d.ts
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# IDE/editor files
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# Database files
+*.db
+*.sqlite
+
+# Firebase service account key
+serviceAccountKey.json
