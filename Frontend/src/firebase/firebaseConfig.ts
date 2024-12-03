@@ -4,13 +4,13 @@ import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPasswor
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
-    apiKey: process.env.FIREBASE_API_KEY as string,
+    apiKey: process.env.REACT_APP_FIREBASE_API_KEY as string,
     authDomain: "soccer-drop-in.firebaseapp.com",
     projectId: "soccer-drop-in",
     storageBucket: "soccer-drop-in.appspot.com",
-    messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID as string,
-    appId: process.env.FIREBASE_APP_ID as string,
-    measurementId: process.env.FIREBASE_MEASUREMENT_ID as string 
+    messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID as string,
+    appId: process.env.REACT_APP_FIREBASE_APP_ID as string,
+    measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID as string 
 };
 
 const app = initializeApp(firebaseConfig);

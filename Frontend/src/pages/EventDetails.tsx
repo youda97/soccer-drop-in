@@ -193,72 +193,126 @@ const EventDetails: React.FC<EventDetailsProps> = ({ showNotification }) => {
     }
   }, [event, user?.uid]);
 
-  const handleJoinPlayer = () => {
-    setIsPlayer(true);
-    setIsModalOpen(true);
+  const handleJoinPlayer = async () => {
+    if (!event || !user?.uid) {
+      console.error("Event or user is undefined");
+      return;
+    }
+
+    if (event.players?.includes(user.uid)) {
+      console.warn("User is already in the players list");
+      return;
+    }
+    if (event.goalkeepers && event.goalkeepers.includes(user.uid)) {
+      console.warn("User is already in the goalkeepers list");
+      return;
+    }
+
+    // Check if the player cost is greater than 0
+    if (event.cost > 0) {
+      // Show the payment modal if the cost is more than 0
+      setIsPlayer(true);
+      setIsModalOpen(true);
+      return;
+    }
+
+    if (event.players?.length >= event.maxPlayers) {
+      // Add to player waitlist if max players reached
+      const updatedPlayerWaitList = [...(event.playerWaitList || []), user.uid];
+      try {
+        await updateDoc(doc(db, "events", event.id), {
+          playerWaitList: updatedPlayerWaitList,
+        });
+
+        // Update local state to reflect the change without needing a refresh
+        setEvent((prev) =>
+          prev ? { ...prev, playerWaitList: updatedPlayerWaitList } : prev
+        );
+
+        console.log("Added to player waitlist");
+      } catch (error) {
+        console.error("Error updating player waitlist:", error);
+      }
+      return;
+    }
+
+    // If there's no cost, add the user directly to the player list
+    const updatedPlayers = [...(event.players || []), user.uid];
+
+    try {
+      await updateDoc(doc(db, "events", event.id), {
+        players: updatedPlayers,
+      });
+
+      setEvent((prev) => (prev ? { ...prev, players: updatedPlayers } : prev));
+      setHasJoined(true);
+    } catch (error) {
+      console.error("Error updating players:", error);
+    }
   };
 
   const handleJoinGoalkeeper = async () => {
-    if (event && user?.uid) {
-      if (event.players?.includes(user.uid)) {
-        console.warn("User is already in the players list");
-        return;
-      }
-      if (event.goalkeepers && event.goalkeepers.includes(user.uid)) {
-        console.warn("User is already in the goalkeepers list");
-        return;
-      }
+    if (!event || !user?.uid) {
+      console.error("Event or user is undefined");
+      return;
+    }
 
-      // Check if the goalkeeper cost is greater than 0
-      if (event.goalkeeperCost > 0) {
-        // Show the payment modal if the cost is more than 0
-        setIsPlayer(false);
-        setIsModalOpen(true);
-        return;
-      }
+    if (event.players?.includes(user.uid)) {
+      console.warn("User is already in the players list");
+      return;
+    }
+    if (event.goalkeepers && event.goalkeepers.includes(user.uid)) {
+      console.warn("User is already in the goalkeepers list");
+      return;
+    }
 
-      if (event.goalkeepers?.length >= 2) {
-        // Add to goalkeeper waitlist if max goalkeepers reached
-        const updatedGoalkeeperWaitList = [
-          ...(event.goalkeeperWaitList || []),
-          user.uid,
-        ];
-        try {
-          await updateDoc(doc(db, "events", event.id), {
-            goalkeeperWaitList: updatedGoalkeeperWaitList,
-          });
+    // Check if the goalkeeper cost is greater than 0
+    if (event.goalkeeperCost > 0) {
+      // Show the payment modal if the cost is more than 0
+      setIsPlayer(false);
+      setIsModalOpen(true);
+      return;
+    }
 
-          // Update local state to reflect the change without needing a refresh
-          setEvent((prev) =>
-            prev
-              ? { ...prev, goalkeeperWaitList: updatedGoalkeeperWaitList }
-              : prev
-          );
-
-          console.log("Added to goalkeeper waitlist");
-        } catch (error) {
-          console.error("Error updating goalkeeper waitlist:", error);
-        }
-        return;
-      }
-
-      // If there's no cost, add the user directly to the goalkeeper list
-      const updatedGoalkeepers = [...(event.goalkeepers || []), user.uid];
-
+    if (event.goalkeepers?.length >= event.maxGoalkeepers) {
+      // Add to goalkeeper waitlist if max goalkeepers reached
+      const updatedGoalkeeperWaitList = [
+        ...(event.goalkeeperWaitList || []),
+        user.uid,
+      ];
       try {
         await updateDoc(doc(db, "events", event.id), {
-          goalkeepers: updatedGoalkeepers,
+          goalkeeperWaitList: updatedGoalkeeperWaitList,
         });
 
+        // Update local state to reflect the change without needing a refresh
         setEvent((prev) =>
-          prev ? { ...prev, goalkeepers: updatedGoalkeepers } : prev
+          prev
+            ? { ...prev, goalkeeperWaitList: updatedGoalkeeperWaitList }
+            : prev
         );
-        setHasJoined(true);
+
+        console.log("Added to goalkeeper waitlist");
       } catch (error) {
-        console.error("Error updating goalkeepers:", error);
+        console.error("Error updating goalkeeper waitlist:", error);
       }
-    } else {
-      console.error("Event or user is undefined");
+      return;
+    }
+
+    // If there's no cost, add the user directly to the goalkeeper list
+    const updatedGoalkeepers = [...(event.goalkeepers || []), user.uid];
+
+    try {
+      await updateDoc(doc(db, "events", event.id), {
+        goalkeepers: updatedGoalkeepers,
+      });
+
+      setEvent((prev) =>
+        prev ? { ...prev, goalkeepers: updatedGoalkeepers } : prev
+      );
+      setHasJoined(true);
+    } catch (error) {
+      console.error("Error updating goalkeepers:", error);
     }
   };
 
@@ -842,7 +896,7 @@ const EventDetails: React.FC<EventDetailsProps> = ({ showNotification }) => {
               ? "md:h-[calc(100vh-130px)] md:top-[130px]"
               : "md:h-[calc(100vh-62px)] md:top-[62px]"
           } bg-white sm:shadow-md p-6 w-full md:w-1/3 lg:w-1/4 border-r flex flex-col justify-between 
-            sticky md:sticky`}
+            sticky md:sticky overflow-auto`}
         >
           <div>
             <h1 className="text-3xl font-bold text-emerald-600 mb-4">
@@ -918,7 +972,7 @@ const EventDetails: React.FC<EventDetailsProps> = ({ showNotification }) => {
                         You are already registered on one of the lists.
                       </p>
                       <button
-                        className="bg-red-700 text-white px-4 py-2 rounded-md hover:bg-red-800 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                        className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
                         onClick={() => setIsCancelModalOpen(true)}
                         disabled={isLoading}
                       >
@@ -959,7 +1013,7 @@ const EventDetails: React.FC<EventDetailsProps> = ({ showNotification }) => {
 
               {user?.isAdmin && event.status !== "cancelled" && (
                 <button
-                  className="bg-red-700 text-white px-4 py-2 rounded-md hover:bg-red-800 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
                   onClick={() => setIsCancelEventModalOpen(true)}
                   disabled={isLoading}
                 >
@@ -1102,7 +1156,7 @@ const EventDetails: React.FC<EventDetailsProps> = ({ showNotification }) => {
                     You are already registered on one of the lists.
                   </p>
                   <button
-                    className="bg-red-700 text-white px-4 py-2 rounded-md hover:bg-red-800 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                    className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
                     onClick={() => setIsCancelModalOpen(true)}
                     disabled={isLoading}
                   >
@@ -1143,7 +1197,7 @@ const EventDetails: React.FC<EventDetailsProps> = ({ showNotification }) => {
 
           {user?.isAdmin && event.status !== "cancelled" && (
             <button
-              className="bg-red-700 text-white px-4 py-2 rounded-md hover:bg-red-800 disabled:bg-gray-400 disabled:cursor-not-allowed"
+              className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
               onClick={() => setIsCancelEventModalOpen(true)}
               disabled={isLoading}
             >

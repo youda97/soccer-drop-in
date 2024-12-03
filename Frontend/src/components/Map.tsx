@@ -8,7 +8,7 @@ interface Location {
 
 const Map: React.FC<{ location: Location | null }> = ({ location }) => {
   const { isLoaded, loadError } = useLoadScript({
-    googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY as string,
+    googleMapsApiKey: process.env.REACT_APP_GOOGLE_MAPS_API_KEY as string,
   });
 
   if (loadError) return <div>Error loading maps</div>;

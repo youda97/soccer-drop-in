@@ -19,6 +19,7 @@ import Notification from "./components/Notification";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import VerifyEmail from "./pages/VerifyEmail";
 import YourEvents from "./pages/YourEvents";
+import Footer from "./components/Footer";
 
 const App: React.FC = () => {
   return (
@@ -140,72 +141,79 @@ const MainRoutes: React.FC = () => {
     return () => unsubscribe(); // Cleanup subscription on unmount
   }, [auth, navigate]);
 
+  const shouldShowFooter =
+    isLoggedIn && !window.location.pathname.includes("/event/");
+
   if (isLoading) return <div>Loading...</div>; // Show loading indicator
 
   return (
-    <>
-      {isLoggedIn && <Header onLogout={handleLogout} />}
-      <Notification
-        message={notification.message}
-        isVisible={notification.isVisible}
-        onClose={hideNotification}
-      />
-      <Routes>
-        <Route
-          path="/"
-          element={
-            isLoggedIn ? <Home /> : <Login setIsLoggedIn={setIsLoggedIn} />
-          }
+    <div className="flex flex-col">
+      <div className="flex-grow">
+        {isLoggedIn && <Header onLogout={handleLogout} />}
+        <Notification
+          message={notification.message}
+          isVisible={notification.isVisible}
+          onClose={hideNotification}
         />
+        <Routes>
+          <Route
+            path="/"
+            element={
+              isLoggedIn ? <Home /> : <Login setIsLoggedIn={setIsLoggedIn} />
+            }
+          />
 
-        <Route
-          path="/register"
-          element={isLoggedIn ? <Navigate to="/" replace /> : <Register />}
-        />
-        <Route
-          path="/verify-email"
-          element={isLoggedIn ? <Navigate to="/" replace /> : <VerifyEmail />}
-        />
+          <Route
+            path="/register"
+            element={isLoggedIn ? <Navigate to="/" replace /> : <Register />}
+          />
+          <Route
+            path="/verify-email"
+            element={isLoggedIn ? <Navigate to="/" replace /> : <VerifyEmail />}
+          />
 
-        {/* Protected Routes */}
-        <Route
-          path="/event/:id"
-          element={
-            <ProtectedRoute isAuthenticated={isLoggedIn}>
-              <EventDetails showNotification={showNotification} />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/confirmation"
-          element={
-            <ProtectedRoute isAuthenticated={isLoggedIn}>
-              <ConfirmationPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/your-events"
-          element={
-            <ProtectedRoute isAuthenticated={isLoggedIn}>
-              <YourEvents />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/admin/create-event"
-          element={
-            <ProtectedRoute isAuthenticated={isLoggedIn}>
-              {user && user.isAdmin ? (
-                <CreateEvent showNotification={showNotification} />
-              ) : (
-                <Home />
-              )}
-            </ProtectedRoute>
-          }
-        />
-      </Routes>
-    </>
+          {/* Protected Routes */}
+          <Route
+            path="/event/:id"
+            element={
+              <ProtectedRoute isAuthenticated={isLoggedIn}>
+                <EventDetails showNotification={showNotification} />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/confirmation"
+            element={
+              <ProtectedRoute isAuthenticated={isLoggedIn}>
+                <ConfirmationPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/your-events"
+            element={
+              <ProtectedRoute isAuthenticated={isLoggedIn}>
+                <YourEvents />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/create-event"
+            element={
+              <ProtectedRoute isAuthenticated={isLoggedIn}>
+                {user && user.isAdmin ? (
+                  <CreateEvent showNotification={showNotification} />
+                ) : (
+                  <Home />
+                )}
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
+      </div>
+
+      {shouldShowFooter && <Footer />}
+    </div>
   );
 };
 
