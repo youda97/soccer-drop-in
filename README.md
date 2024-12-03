@@ -11,6 +11,7 @@ An intuitive soccer drop-in app that lets players join and track local games eas
   
 - **Admins**:
   - Efficiently organize and manage soccer events, view and track participants, and manage event cancellations.
+  - Players are notified by email when an event is created
 
 - **Payments**:
   - Secure payments using Stripe for charging players and processing refunds.
