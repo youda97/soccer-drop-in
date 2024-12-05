@@ -1,17 +1,22 @@
-// server.js
-require('dotenv').config();
-
-const express = require('express');
-const cors = require('cors');
-const stripe = require('stripe')(process.env.stripe_secret_key);
-const admin = require('firebase-admin');
-const serviceAccount = require('./serviceAccountKey.json');
+const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const { logger } = require("firebase-functions");
 const { getFirestore } = require("firebase-admin/firestore");
+const admin = require("firebase-admin");
+const nodemailer = require("nodemailer");
+const express = require("express");
+const cors = require("cors");
+const dotenv = require("dotenv");
+const Stripe = require("stripe");
+const functions = require("firebase-functions");
 
-// Initialize Firebase Admin
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-});
+// Initialize Firebase Admin SDK
+admin.initializeApp();
+
+// Load environment variables from the .env file
+dotenv.config();
+
+// Firestore reference
+const db = admin.firestore();
 
 const app = express();
 
@@ -21,9 +26,18 @@ app.use(cors());
 // Middleware
 app.use(express.json());
 
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || functions.config().stripe.key);
+
+// Use the environment variables
+const { SENDER_EMAIL, SENDER_PASSWORD } = process.env;
+
 // Payment Intent Route
 app.post('/createPaymentIntent', async (req, res) => {
   const { user, amount } = req.body; // Get amount in cents from frontend
+
+  if (!user || !amount) {
+    return res.status(400).send({ error: "Invalid request payload" });
+  }
 
   try {
     const db = getFirestore();
@@ -52,18 +66,22 @@ app.post('/createPaymentIntent', async (req, res) => {
       customer: customerId,
     });
 
-    res.send({
+    return res.send({
       clientSecret: paymentIntent.client_secret,
       paymentIntentId: paymentIntent.id,
     });
   } catch (error) {
-    console.error("Error creating payment intent:", error.message);
-    res.status(500).json({ error: error.message });
+    console.error("Error creating payment intent:", error);
+    return res.status(500).json({ error: error });
   }
 });
 
 app.post("/savePaymentMethod", async (req, res) => {
   const { user, paymentMethodId } = req.body;
+
+  if (!user || !paymentMethodId) {
+    return res.status(400).send({ error: "Invalid request payload" });
+  }
 
   try {
     const db = getFirestore();
@@ -93,7 +111,7 @@ app.post("/savePaymentMethod", async (req, res) => {
       return res.status(400).send("Invalid payment method ID.");
     }
 
-    const paymentMethodFingerprint = paymentMethod.card.fingerprint;
+    const paymentMethodFingerprint = paymentMethod.card?.fingerprint;
 
     // Fetch all payment methods for the customer
     const paymentMethods = await stripe.paymentMethods.list({
@@ -103,7 +121,7 @@ app.post("/savePaymentMethod", async (req, res) => {
 
     // Check if the payment method fingerprint is already saved
     const isDuplicate = paymentMethods.data.some(
-      (method) => method.card.fingerprint === paymentMethodFingerprint
+      (method) => method.card?.fingerprint === paymentMethodFingerprint
     );
 
     if (!isDuplicate) {
@@ -112,10 +130,10 @@ app.post("/savePaymentMethod", async (req, res) => {
     }
 
     // Proceed with the payment intent creation or further actions
-    res.send({ success: true, message: "Payment method processed successfully." });
+    return res.send({ success: true, message: "Payment method processed successfully." });
   } catch (error) {
     console.error("Error saving payment method:", error);
-    res.status(500).send({ error: error.message });
+    return res.status(500).send({ error: error });
   }
 });
 
@@ -135,9 +153,9 @@ app.get("/getSavedCards/:userId", async (req, res) => {
       type: "card",
     });
 
-    res.send(paymentMethods.data);
+    return res.send(paymentMethods.data);
   } catch (error) {
-    res.status(500).send({ error: error.message });
+    return res.status(500).send({ error: error });
   }
 });
 
@@ -176,10 +194,10 @@ app.post("/chargeUser", async (req, res) => {
       paymentIntentId
     );
 
-    res.status(200).send({ success: true, paymentIntent: confirmedPaymentIntent });
+    return res.status(200).send({ success: true, paymentIntent: confirmedPaymentIntent });
   } catch (error) {
     console.error("Error confirming PaymentIntent:", error);
-    res.status(500).send({ success: false, message: error.message });
+    return res.status(500).send({ success: false, message: error });
   }
 });
 
@@ -191,7 +209,7 @@ app.get('/paymentIntents/:id', async (req, res) => {
     res.json(paymentIntent);
   } catch (error) {
     console.error('Error retrieving payment intent:', error);
-    res.status(400).json({ success: false, message: error.message });
+    res.status(400).json({ success: false, message: error });
   }
 });
 
@@ -214,12 +232,110 @@ app.post('/refund', async (req, res) => {
     res.json({ success: true, data: refund });
   } catch (error) {
     console.error('Error issuing refund:', error);
-    res.status(400).json({ success: false, message: error.message });
+    res.status(400).json({ success: false, message: error });
   }
 });
 
-// Start the Express Server
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+// Firestore Trigger on Document Creation
+const notifyUsersOnEventCreated = onDocumentCreated(
+  "events/{eventId}",
+  async (event) => {
+    // Extract document snapshot and route parameters
+    const snapshot = event.data;
+    const params = event.params || {};
+
+    // Ensure snapshot exists
+    if (!snapshot) {
+      logger.error("No data in the snapshot.");
+      return;
+    }
+
+    // Access the event data
+    const eventData = snapshot.data();
+    logger.info("New event created:", eventData);
+
+    // Access route parameters (e.g., eventId)
+    const { eventId } = params;
+    if (!eventId) {
+      logger.error("No eventId found in the path parameters.");
+      return;
+    }
+
+    try {
+      // Fetch all users to notify
+      const usersQuerySnapshot = await db.collection("users").get();
+      const emailPromises = [];
+
+      // Iterate over users and send email notifications
+      usersQuerySnapshot.forEach((userDoc) => {
+        const userData = userDoc.data();
+        const userEmail = userData.email;
+
+        if (userEmail) {
+          emailPromises.push(sendEmailNotification(userEmail, eventData));
+        }
+      });
+
+      // Wait for all email promises to complete
+      await Promise.all(emailPromises);
+
+      logger.info(`Notification emails sent for event ID: ${eventId}`);
+    } catch (error) {
+      logger.error("Error notifying users:", error);
+    }
+  }
+);
+
+// Configure Nodemailer
+const transporter = nodemailer.createTransport({
+    service: "gmail", // Use your email provider
+    auth: {
+        user: SENDER_EMAIL || functions.config().email.user,
+        pass: SENDER_PASSWORD || functions.config().email.pass,
+      },
+  });
+
+/**
+ * Sends an email notification to a user about a new event.
+ * @param email - The recipient's email address.
+ * @param eventData - The event data to include in the email.
+ */
+async function sendEmailNotification(email, eventData) {
+    const startDate = new Date(eventData.startDate._seconds * 1000);
+    const date = startDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long',  day: 'numeric', timeZone: 'America/New_York' });
+    const endDate = new Date(eventData.endDate._seconds * 1000);
+    const startTime = startDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true,  timeZone: 'America/New_York' });
+    const endTime = endDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true,  timeZone: 'America/New_York' });
+    const location = eventData.locationName;
+    const cost = eventData.cost;
+    const maxPlayers = eventData.maxPlayers;
+    const includeGoalkeepers = eventData.includeGoalkeepers ? "Yes" : "No";
+    const goalkeeperCost = eventData.goalkeeperCost;
+    const maxGoalkeepers = eventData.maxGoalkeepers;
+
+    const goalkeeperDetails = eventData.includeGoalkeepers
+        ? `Goalkeeper cost: ${goalkeeperCost}\nMax goalkeepers: ${maxGoalkeepers}`
+        : "";
+
+    const mailOptions = {
+        from: SENDER_EMAIL,
+        to: email,
+        subject: `New Event: ${eventData.title}`,
+        text: `A new event has been created!\n
+Date: ${date}
+Time: ${startTime} - ${endTime}
+Location: ${location}
+Player cost: ${cost}
+Max players: ${maxPlayers}
+Includes Goalkeepers: ${includeGoalkeepers}
+${goalkeeperDetails}`,
+        };
+
+        await transporter.sendMail(mailOptions);
+}
+
+// Export Firestore trigger
+exports.notifyUsersOnEventCreated = notifyUsersOnEventCreated;  
+
+// Export the Express app as a Firebase Function
+exports.api = functions.https.onRequest(app);
