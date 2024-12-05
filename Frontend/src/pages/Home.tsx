@@ -2,12 +2,12 @@ import React, { useEffect, useState } from "react";
 import {
   isToday,
   isTomorrow,
-  isThisWeek,
   addWeeks,
+  addMonths,
+  parseISO,
+  startOfDay,
+  isWithinInterval,
   isSameMonth,
-  isSaturday,
-  isSunday,
-  isSameWeek,
 } from "date-fns";
 import { db } from "../firebase/firebaseConfig"; // Firestore instance
 import { collection, getDocs, Timestamp, GeoPoint } from "firebase/firestore";
@@ -15,14 +15,6 @@ import { FaSadTear } from "react-icons/fa";
 import EventCard from "../components/EventCard";
 import { Event } from "../types/event";
 import CompletedEventsTable from "../components/CompletedEventsTable";
-
-// Helper function
-function isThisWeekend(date: Date) {
-  return (
-    (isSaturday(date) || isSunday(date)) &&
-    isSameWeek(date, new Date(), { weekStartsOn: 1 })
-  );
-}
 
 type GroupedEvents = {
   [category: string]: Event[];
@@ -59,6 +51,7 @@ const EventList: React.FC = () => {
         playerWaitList: data.playerWaitList || [],
         goalkeeperWaitList: data.goalkeeperWaitList || [],
         refundedUsers: [],
+        organizer: data.organizer,
       };
     });
   };
@@ -69,45 +62,69 @@ const EventList: React.FC = () => {
     const thisWeek: Event[] = [];
     const thisWeekend: Event[] = [];
     const nextWeek: Event[] = [];
-    const nextMonth: GroupedEvents = {};
+    const thisMonth: Event[] = [];
     const upcomingMonths: GroupedEvents = {};
     const completed: Event[] = [];
 
     // Filter out cancelled events
     const activeEvents = events.filter((event) => event.status !== "cancelled");
 
+    const currentDate = new Date();
+    const nextMonthDate = addMonths(currentDate, 1); // Add one month to get the "next month"
+
+    // Normalize all dates to UTC by converting them to the start of the day in UTC
+    const currentStartOfDayUTC = startOfDay(currentDate); // Assuming currentDate is already a Date object
+
+    // Add 1 week and 2 weeks, normalize to start of day in UTC
+    const thisWeekStartUTC = startOfDay(addWeeks(currentStartOfDayUTC, 0));
+    const thisWeekEndUTC = startOfDay(addWeeks(currentStartOfDayUTC, 1));
+
+    // Add 1 week and 2 weeks, normalize to start of day in UTC
+    const nextWeekStartUTC = startOfDay(addWeeks(currentStartOfDayUTC, 1));
+    const nextWeekEndUTC = startOfDay(addWeeks(currentStartOfDayUTC, 2));
+
     activeEvents.forEach((event) => {
       if (!event.startDate) {
         console.error("Event does not have a valid date");
         return;
       }
-      const startDate = event.startDate.toDate();
 
-      if (startDate < new Date()) {
+      const startDateISO = event.startDate.toDate().toISOString();
+      const startDate = parseISO(startDateISO);
+
+      if (startDate < currentDate) {
         completed.push(event);
       } else if (isToday(startDate)) {
         today.push(event);
       } else if (isTomorrow(startDate)) {
         tomorrow.push(event);
-      } else if (isThisWeek(startDate)) {
-        thisWeek.push(event);
-      } else if (isThisWeekend(startDate)) {
-        thisWeekend.push(event);
       } else if (
-        startDate >= addWeeks(new Date(), 1) &&
-        startDate < addWeeks(new Date(), 2)
+        isWithinInterval(startDate, {
+          start: thisWeekStartUTC,
+          end: thisWeekEndUTC,
+        })
+      ) {
+        thisWeek.push(event);
+      } else if (
+        isWithinInterval(startDate, {
+          start: nextWeekStartUTC,
+          end: nextWeekEndUTC,
+        })
       ) {
         nextWeek.push(event);
-      } else if (isSameMonth(startDate, new Date(addWeeks(new Date(), 2)))) {
-        const monthKey = startDate.getMonth();
-        if (!nextMonth[monthKey]) {
-          nextMonth[monthKey] = [];
-        }
-        nextMonth[monthKey].push(event);
+      } else if (isSameMonth(startDate, currentStartOfDayUTC)) {
+        thisMonth.push(event);
       } else {
-        const monthKey = `${startDate.toLocaleString("default", {
+        // Determine if the event is in "Next Month"
+        const eventMonth = startDate.toLocaleString("default", {
           month: "long",
-        })}`;
+        });
+        const isNextMonth =
+          startDate.getFullYear() === nextMonthDate.getFullYear() &&
+          startDate.getMonth() === nextMonthDate.getMonth();
+
+        const monthKey = isNextMonth ? "Next Month" : eventMonth;
+
         if (!upcomingMonths[monthKey]) {
           upcomingMonths[monthKey] = [];
         }
@@ -124,11 +141,9 @@ const EventList: React.FC = () => {
     thisWeek.sort(sortByDate);
     thisWeekend.sort(sortByDate);
     nextWeek.sort(sortByDate);
+    thisMonth.sort(sortByDate);
     completed.sort(sortByDate);
 
-    Object.values(nextMonth).forEach((monthEvents) =>
-      monthEvents.sort(sortByDate)
-    );
     Object.values(upcomingMonths).forEach((monthEvents) =>
       monthEvents.sort(sortByDate)
     );
@@ -139,7 +154,7 @@ const EventList: React.FC = () => {
       thisWeek,
       thisWeekend,
       nextWeek,
-      nextMonth,
+      thisMonth,
       upcomingMonths,
       completed,
     };
@@ -188,13 +203,13 @@ const EventList: React.FC = () => {
     thisWeek,
     thisWeekend,
     nextWeek,
-    nextMonth,
+    thisMonth,
     upcomingMonths,
     completed,
   } = groupEvents(events);
 
   return (
-    <div className="p-4">
+    <div className="p-4 bg-white">
       <div className="container mx-auto px-0 md:px-4 xl:px-32 2xl:px-60">
         <h1 className="text-2xl font-bold mb-4">Available Events</h1>
         {loading ? (
@@ -208,7 +223,6 @@ const EventList: React.FC = () => {
               thisWeek.length === 0 &&
               thisWeekend.length === 0 &&
               nextWeek.length === 0 &&
-              Object.keys(nextMonth).length === 0 &&
               Object.keys(upcomingMonths).length === 0 && (
                 <div className="flex items-center mt-10 ml-4">
                   <FaSadTear className="text-gray-500 text-5xl mr-4" />
@@ -229,9 +243,7 @@ const EventList: React.FC = () => {
             {renderSection("This Week", thisWeek, "thisWeek")}
             {renderSection("This Weekend", thisWeekend, "thisWeekend")}
             {renderSection("Next Week", nextWeek, "nextWeek")}
-            {Object.entries(nextMonth).map(([_, events]) =>
-              renderSection(`Next Month`, events, `nextMonth`)
-            )}
+            {renderSection("This Month", thisMonth, "thisMonth")}
             {Object.entries(upcomingMonths).map(([month, events]) =>
               renderSection(`${month}`, events, `upcomingMonths-${month}`)
             )}

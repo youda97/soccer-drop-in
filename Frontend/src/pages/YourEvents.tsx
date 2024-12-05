@@ -56,7 +56,7 @@ const UserEvents: React.FC = () => {
           goalkeeperWaitList.includes(user.uid);
         const isRefunded = refundedUsers?.includes(user.uid);
 
-        if (status === "cancelled") {
+        if (status === "cancelled" && (isPlaying || isOnWaitlist)) {
           canceledEvents.push(event);
         } else if (isRefunded) {
           refunded.push(event);
@@ -92,7 +92,7 @@ const UserEvents: React.FC = () => {
   }
 
   return (
-    <div className="p-4">
+    <div className="p-4 bg-white">
       <h2 className="text-2xl font-bold mb-4">Your Events</h2>
       <section>
         <h3 className="text-xl font-semibold mb-2">Current Events</h3>

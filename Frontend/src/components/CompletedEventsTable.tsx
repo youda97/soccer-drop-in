@@ -24,10 +24,15 @@ const CompletedEventsTable: React.FC<CompletedEventsTableProps> = ({
     setCurrentPage(page);
   };
 
-  const formatDate = (timestamp: Timestamp | null) => {
-    if (!timestamp) return "N/A"; // Handle missing timestamp
-    const date = timestamp.toDate(); // Convert to JS Date
-    return date.toLocaleString(); // Format the date as a string
+  // Helper function to format timestamps to a readable date format
+  const formatDate = (timestamp: Timestamp | null): Date | null => {
+    if (!timestamp) return null; // Handle missing timestamp
+    try {
+      return timestamp.toDate(); // Convert to JS Date
+    } catch (error) {
+      console.error("Invalid timestamp:", timestamp, error);
+      return null;
+    }
   };
 
   return (
@@ -67,11 +72,18 @@ const CompletedEventsTable: React.FC<CompletedEventsTableProps> = ({
               <td className="px-4 py-3 text-sm text-gray-800">{event.title}</td>
               <td className="px-4 py-3 text-sm text-gray-800">{event.cost}</td>
               <td className="px-4 py-3 text-sm text-gray-800">
-                {format(formatDate(event.startDate), "EEE, MMMM d, yyyy")}
+                {formatDate(event.startDate)
+                  ? format(formatDate(event.startDate)!, "EEE, MMMM d, yyyy")
+                  : "Invalid Date"}
               </td>
               <td className="px-4 py-3 text-sm text-gray-800">
-                {format(formatDate(event.startDate), "h:mm a")} -{" "}
-                {format(formatDate(event.endDate), "h:mm a")}
+                {formatDate(event.startDate)
+                  ? format(formatDate(event.startDate)!, "h:mm a")
+                  : "Invalid Date"}
+                -{" "}
+                {formatDate(event.endDate)
+                  ? format(formatDate(event.endDate)!, "h:mm a")
+                  : "Invalid Date"}
               </td>
               <td className="px-4 py-3 text-sm text-gray-800">
                 {event.locationName}
@@ -91,8 +103,8 @@ const CompletedEventsTable: React.FC<CompletedEventsTableProps> = ({
               </td>
               <td className="px-4 py-3 text-sm text-blue-500 cursor-pointer hover:underline">
                 <Link to={`/event/${event.id}`} className="flex items-center">
-                  <span>More</span>
-                  <FaArrowRight className="ml-2" />
+                  <span className="text-blue-500">More</span>
+                  <FaArrowRight className="ml-2 text-blue-500" />
                 </Link>
               </td>
             </tr>

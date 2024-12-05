@@ -1,5 +1,11 @@
 import { Timestamp, GeoPoint } from "firebase/firestore";
 
+export interface User {
+  uid: string;
+  email: string | null;
+  isAdmin: boolean;
+}
+
 export interface Event {
     id: string;
     title: string;
@@ -19,4 +25,5 @@ export interface Event {
     playerWaitList: string[];
     goalkeeperWaitList: string[];
     refundedUsers: string[];
+    organizer: User
   }

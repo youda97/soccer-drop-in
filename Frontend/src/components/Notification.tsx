@@ -25,11 +25,11 @@ const Notification: React.FC<NotificationProps> = ({
 
   return (
     <div
-      className={`fixed top-7 left-0 right-0 mx-auto w-1/2 bg-green-500 text-white px-6 py-3 rounded shadow-lg z-50 flex items-center justify-between
+      className={`fixed top-7 left-0 right-0 mx-auto sm:w-1/2 bg-green-500 text-white px-6 py-3 rounded shadow-lg z-50 flex items-center justify-between w-4/5
       ${isVisible ? "fade-in" : "fade-out"}`}
       style={{ maxWidth: "600px" }} // Optional: max width for smaller screens
     >
-      <p>{message}</p>
+      <p className="text-white">{message}</p>
       <button
         onClick={onClose}
         className="mr-[-10px] bg-green-700 text-white hover:bg-green-600 focus:outline-none rounded-[6px] px-3 py-1"

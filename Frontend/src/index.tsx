@@ -6,7 +6,7 @@ import { loadStripe } from "@stripe/stripe-js";
 import App from "./App";
 import "./index.css";
 
-const stripePublicKey = process.env.REACT_APP_STRIPE_PUBLIC_KEY;
+const stripePublicKey = process.env.REACT_APP_STRIPE_LIVE_PUBLIC_KEY;
 
 let stripePromise = null;
 if (!stripePublicKey) {

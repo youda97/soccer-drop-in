@@ -49,10 +49,14 @@ const EventCard: React.FC<EventCardProps> = ({ event }) => {
   }, []);
 
   // Helper function to format timestamps to a readable date format
-  const formatDate = (timestamp: Timestamp | null) => {
-    if (!timestamp) return "N/A"; // Handle missing timestamp
-    const date = timestamp.toDate(); // Convert to JS Date
-    return date.toLocaleString(); // Format the date as a string
+  const formatDate = (timestamp: Timestamp | null): Date | null => {
+    if (!timestamp) return null; // Handle missing timestamp
+    try {
+      return timestamp.toDate(); // Convert to JS Date
+    } catch (error) {
+      console.error("Invalid timestamp:", timestamp, error);
+      return null;
+    }
   };
 
   const getDuration = (start: Date | undefined, end: Date | undefined) => {
@@ -99,14 +103,18 @@ const EventCard: React.FC<EventCardProps> = ({ event }) => {
           {/* Left Side: Calendar and Title */}
           <div className="flex items-center overflow-hidden">
             <div className="min-[400px]:w-12 min-[400px]:h-12 w-10 h-10 border-2 border-white rounded-lg flex flex-col items-center justify-center bg-lime-500 shadow-md sm:mr-4 mr-2">
-              <span className="mt-1 text-xs font-bold">
-                {format(formatDate(event.startDate), "EEE")}
+              <span className="mt-1 text-xs font-bold text-white">
+                {formatDate(event.startDate)
+                  ? format(formatDate(event.startDate)!, "EEE")
+                  : "Invalid Date"}
               </span>
-              <span className="-mt-1 min-[400px]:text-lg text-sm font-semibold">
-                {format(formatDate(event.startDate), "d")}
+              <span className="-mt-1 min-[400px]:text-lg text-sm font-semibold text-white">
+                {formatDate(event.startDate)
+                  ? format(formatDate(event.startDate)!, "d")
+                  : "Invalid Date"}
               </span>
             </div>
-            <h3 className="text-lg sm:text-2xl font-semibold tracking-tight truncate flex-1">
+            <h3 className="text-lg sm:text-2xl font-semibold tracking-tight truncate flex-1 text-white">
               {event.title}
             </h3>
           </div>
@@ -114,7 +122,7 @@ const EventCard: React.FC<EventCardProps> = ({ event }) => {
           {/* Right Side: Cost, Book Button */}
           <div className="flex items-center justify-end sm:space-x-4 sm:mr-8">
             {/* Event Cost */}
-            <p className="text-lg sm:text-2xl font-roboto sm:ml-auto flex-shrink-0">
+            <p className="text-lg sm:text-2xl font-roboto sm:ml-auto flex-shrink-0 text-white">
               ${event.cost.toFixed(2)}
             </p>
 
@@ -162,12 +170,21 @@ const EventCard: React.FC<EventCardProps> = ({ event }) => {
             <div className="space-y-1">
               <p className="text-sm text-gray-800 flex items-center">
                 <FaCalendar className="mr-2 text-gray-500" />
-                Date: {format(formatDate(event.startDate), "EEE, MMMM d, yyyy")}
+                Date:{" "}
+                {formatDate(event.startDate)
+                  ? format(formatDate(event.startDate)!, "EEE, MMMM d, yyyy")
+                  : "Invalid Date"}
               </p>
               <p className="text-sm text-gray-800 flex items-center">
                 <FaClock className="mr-2 text-gray-500" />
-                Hours: {format(formatDate(event.startDate), "h:mm a")} -{" "}
-                {format(formatDate(event.endDate), "h:mm a")}
+                Hours:{" "}
+                {formatDate(event.startDate)
+                  ? format(formatDate(event.startDate)!, "h:mm a")
+                  : "Invalid Date"}{" "}
+                -{" "}
+                {formatDate(event.endDate)
+                  ? format(formatDate(event.endDate)!, "h:mm a")
+                  : "Invalid Date"}
               </p>
               <p className="text-sm text-gray-800 flex items-center">
                 <FaHourglassHalf className="mr-2 text-gray-500" />

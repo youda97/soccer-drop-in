@@ -28,23 +28,7 @@ const Header: React.FC<{
     }
   };
 
-  const fetchUserName = async () => {
-    if (!user || !user.uid) return "";
-
-    try {
-      const userDoc = await getDoc(doc(db, "users", user.uid));
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
-        setUsername(`${userData.firstName} ${userData.lastName}`);
-      }
-    } catch (error) {
-      console.error("Error fetching user data:", error);
-    }
-  };
-
   useEffect(() => {
-    fetchUserName();
-
     const handleClickOutside = (event: MouseEvent) => {
       if (
         dropdownRef.current &&
@@ -59,6 +43,24 @@ const Header: React.FC<{
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
+
+  useEffect(() => {
+    const fetchUserName = async () => {
+      if (!user || !user.uid) return "";
+
+      try {
+        const userDoc = await getDoc(doc(db, "users", user.uid));
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          setUsername(`${userData.firstName} ${userData.lastName}`);
+        }
+      } catch (error) {
+        console.error("Error fetching user data:", error);
+      }
+    };
+
+    fetchUserName();
+  }, [user]);
 
   return (
     <header className="bg-zinc-700 text-white flex justify-between items-center p-4 sticky top-0 z-10">

@@ -4,6 +4,7 @@ import { db } from "../firebase/firebaseConfig"; // Import Firestore instance
 import { collection, addDoc, Timestamp, GeoPoint } from "firebase/firestore";
 import { Autocomplete } from "@react-google-maps/api";
 import Map from "../components/Map";
+import { useAuth } from "../components/Auth";
 
 interface CreateEventProps {
   showNotification: (message: string) => void;
@@ -56,8 +57,10 @@ const CreateEvent: React.FC<CreateEventProps> = ({ showNotification }) => {
   const [locationName, setLocationName] = useState("");
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
   const isApiLoaded = useGoogleMapsApi(
-    "AIzaSyArENfJ3czxw6LMD-OmxZHluWTVuP8Jpgg"
+    process.env.REACT_APP_GOOGLE_MAPS_API_KEY as string
   );
+
+  const { user } = useAuth();
 
   const navigate = useNavigate();
 
@@ -130,6 +133,7 @@ const CreateEvent: React.FC<CreateEventProps> = ({ showNotification }) => {
         goalkeepers: [],
         playerWaitList: [],
         goalkeeperWaitList: [],
+        organizer: user,
         createdAt: new Date(),
       });
 
@@ -169,6 +173,7 @@ const CreateEvent: React.FC<CreateEventProps> = ({ showNotification }) => {
               required
               onChange={(e) => setDate(e.target.value)}
               className="border p-3 rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-green-500"
+              placeholder="yyyy-mm-dd"
             />
           </div>
 
@@ -180,6 +185,7 @@ const CreateEvent: React.FC<CreateEventProps> = ({ showNotification }) => {
               required
               onChange={(e) => setTime(e.target.value)}
               className="border p-3 rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-green-500"
+              placeholder="--:-- --"
             />
           </div>
 

@@ -28,9 +28,7 @@ const VerifyEmail: React.FC = () => {
     const checkEmailVerified = async () => {
       if (auth.currentUser) {
         await auth.currentUser.reload();
-        if (auth.currentUser.emailVerified) {
-          navigate("/"); // Redirect to home page if email is verified
-        } else {
+        if (!auth.currentUser.emailVerified) {
           setTimeout(checkEmailVerified, 3000); // Retry after 3 seconds if not verified
         }
       }
@@ -51,7 +49,7 @@ const VerifyEmail: React.FC = () => {
         </p>
         <button
           onClick={handleResendVerification}
-          className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded transition duration-200 ease-in-out"
+          className="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-2 px-4 rounded transition duration-200 ease-in-out"
         >
           Resend Verification Email
         </button>

@@ -7,12 +7,7 @@ import {
   onAuthStateChanged,
   signOut,
 } from "firebase/auth";
-
-interface User {
-  uid: string;
-  email: string | null;
-  isAdmin: boolean;
-}
+import { User } from "../types/event";
 
 interface AuthContextType {
   user: User | null;

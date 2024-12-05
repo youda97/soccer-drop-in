@@ -25,9 +25,8 @@ import { format, differenceInHours } from "date-fns"; // Import date-fns for dat
 import { Event } from "../types/event";
 import Map from "../components/Map";
 import { useAuth } from "../components/Auth";
-import axios from "axios";
+import axiosInstance from "../axiosInstance";
 import CancelModal from "../components/cancelModal";
-import { Helmet } from "react-helmet";
 
 interface EventDetailsProps {
   showNotification: (message: string) => void;
@@ -45,6 +44,7 @@ const EventDetails: React.FC<EventDetailsProps> = ({ showNotification }) => {
   const [isUserAlreadyJoined, setIsUserAlreadyJoined] = useState(false);
   const [isPlayer, setIsPlayer] = useState(false);
   const [canCancel, setCanCancel] = useState(false);
+  const [organizerName, setOrganizerName] = useState("");
   const [event, setEvent] = useState<Event | null>(null); // State to hold event data
   const [playerList, setPlayerList] = useState<(string | null)[]>([]);
   const [goalkeeperList, setGoalkeeperList] = useState<(string | null)[]>([]);
@@ -69,27 +69,37 @@ const EventDetails: React.FC<EventDetailsProps> = ({ showNotification }) => {
     }
   };
 
+  const getUserName = async (userId: string) => {
+    try {
+      const userDoc = await getDoc(doc(db, "users", userId));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        return `${userData.firstName} ${userData.lastName}`;
+      } else {
+        return null;
+      }
+    } catch (error) {
+      console.error("Error fetching user data:", error);
+      return null;
+    }
+  };
+
   const fetchUserNames = async (userIds: string[]) => {
     if (!userIds || userIds.length === 0) return [];
 
     const fetchedNames = await Promise.all(
       userIds.map(async (userId) => {
-        try {
-          const userDoc = await getDoc(doc(db, "users", userId));
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
-            return `${userData.firstName} ${userData.lastName}`;
-          } else {
-            return null;
-          }
-        } catch (error) {
-          console.error("Error fetching user data:", error);
-          return null;
-        }
+        return await getUserName(userId);
       })
     );
 
     return fetchedNames.filter((name) => name !== null);
+  };
+
+  const getOrganizerName = async () => {
+    if (!event) return "";
+    const name = await getUserName(event?.organizer?.uid);
+    setOrganizerName(name || "");
   };
 
   // useEffect to call fetchEvent when the component mounts or eventId changes
@@ -114,6 +124,10 @@ const EventDetails: React.FC<EventDetailsProps> = ({ showNotification }) => {
 
     getEventData();
   }, [eventId]); // Dependency array: fetch event whenever eventId changes
+
+  useEffect(() => {
+    getOrganizerName();
+  }, [event]);
 
   useEffect(() => {
     const fetchPlayers = async () => {
@@ -357,7 +371,7 @@ const EventDetails: React.FC<EventDetailsProps> = ({ showNotification }) => {
       const userDoc = await getDoc(doc(db, "users", user?.uid));
       const userData = userDoc.data();
 
-      const response = await axios.post("/chargeUser", {
+      const response = await axiosInstance.post("/chargeUser", {
         paymentIntentId,
         paymentMethodId,
         userId: userData?.stripeCustomerId,
@@ -437,7 +451,7 @@ const EventDetails: React.FC<EventDetailsProps> = ({ showNotification }) => {
       const userDoc = await getDoc(doc(db, "users", user?.uid));
       const userData = userDoc.data();
 
-      const response = await axios.post("/chargeUser", {
+      const response = await axiosInstance.post("/chargeUser", {
         paymentIntentId,
         paymentMethodId,
         userId: userData?.stripeCustomerId,
@@ -520,7 +534,7 @@ const EventDetails: React.FC<EventDetailsProps> = ({ showNotification }) => {
         const userData = userDoc.data();
 
         // Confirm payment intent via backend for charging promoted user
-        const response = await axios.post("/chargeUser", {
+        const response = await axiosInstance.post("/chargeUser", {
           paymentIntentId,
           paymentMethodId,
           userId: userData?.stripeCustomerId,
@@ -651,7 +665,7 @@ const EventDetails: React.FC<EventDetailsProps> = ({ showNotification }) => {
 
     try {
       // Step 1: Retrieve the payment intent details
-      const paymentIntent = await axios.get(
+      const paymentIntent = await axiosInstance.get(
         `/paymentIntents/${paymentIntentId}`
       );
       latestChargeId = paymentIntent.data.latest_charge;
@@ -666,7 +680,7 @@ const EventDetails: React.FC<EventDetailsProps> = ({ showNotification }) => {
       }
 
       // Step 2: Issue refund using the charge ID instead of the paymentIntentId
-      const response = await axios.post("/refund", {
+      const response = await axiosInstance.post("/refund", {
         chargeId: latestChargeId,
       });
       // return response.data;
@@ -815,11 +829,40 @@ const EventDetails: React.FC<EventDetailsProps> = ({ showNotification }) => {
     }
   };
 
+  const handleShare = async () => {
+    try {
+      if (!event) {
+        console.error("Event is undefined");
+        return;
+      }
+
+      // Ensure the browser supports the API
+      if (!navigator.canShare) {
+        alert("Your browser doesn't support sharing.");
+        return;
+      }
+
+      const shareData = {
+        url: window.location.href,
+      };
+
+      // Use the Web Share API
+      await navigator.share(shareData);
+      console.log("Content shared successfully!");
+    } catch (error) {
+      console.error("Error sharing:", error);
+    }
+  };
+
   // Helper function to format timestamps to a readable date format
-  const formatDate = (timestamp: Timestamp | null) => {
-    if (!timestamp) return "N/A"; // Handle missing timestamp
-    const date = (timestamp as Timestamp).toDate(); // Convert to JS Date
-    return date.toLocaleString(); // Format the date as a string
+  const formatDate = (timestamp: Timestamp | null): Date | null => {
+    if (!timestamp) return null; // Handle missing timestamp
+    try {
+      return timestamp.toDate(); // Convert to JS Date
+    } catch (error) {
+      console.error("Invalid timestamp:", timestamp, error);
+      return null;
+    }
   };
 
   if (pageLoading) {
@@ -841,32 +884,6 @@ const EventDetails: React.FC<EventDetailsProps> = ({ showNotification }) => {
 
   return (
     <>
-      <Helmet>
-        <title>{event.title}</title>
-        <meta property="og:title" content={event.title} />
-        <meta
-          property="og:description"
-          content={
-            `Join us for ${event.title}. Date: ${format(
-              formatDate(event.startDate),
-              "EEE, MMMM d"
-            )}. Duration: ${format(
-              formatDate(event.startDate),
-              "h:mm a"
-            )} - ${format(formatDate(event.endDate), "h:mm a")}}. Location: ${
-              event.location
-            }. Player Cost: ${event.cost}.` + event.includeGoalkeepers
-              ? "Goalkeeper Cost: " +
-                (event.goalkeeperCost > 0
-                  ? "$" + event.goalkeeperCost?.toFixed(2)
-                  : "Free")
-              : ""
-          }
-        />
-        {/* <meta property="og:image" content={event.image} /> */}
-        <meta property="og:url" content={window.location.href} />
-      </Helmet>
-
       {isLoading && (
         <div className="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50">
           <div className="w-16 h-16 border-4 border-t-blue-500 border-gray-200 rounded-full animate-spin"></div>
@@ -877,13 +894,13 @@ const EventDetails: React.FC<EventDetailsProps> = ({ showNotification }) => {
         event.endDate.toDate() < new Date() &&
         event.status !== "cancelled" && (
           <div className="bg-green-500 text-white text-center py-4 sticky md:top-[62px]">
-            <h2 className="text-3xl font-bold">Event Completed</h2>
+            <h2 className="text-3xl font-bold text-white">Event Completed</h2>
           </div>
         )}
 
       {event.status === "cancelled" && (
         <div className="bg-red-600 text-white text-center py-4 sticky md:top-[62px]">
-          <h2 className="text-3xl font-bold">Event Cancelled</h2>
+          <h2 className="text-3xl font-bold text-white">Event Cancelled</h2>
         </div>
       )}
 
@@ -895,38 +912,45 @@ const EventDetails: React.FC<EventDetailsProps> = ({ showNotification }) => {
             (event.endDate && event.endDate.toDate() < new Date())
               ? "md:h-[calc(100vh-130px)] md:top-[130px]"
               : "md:h-[calc(100vh-62px)] md:top-[62px]"
-          } bg-white sm:shadow-md p-6 w-full md:w-1/3 lg:w-1/4 border-r flex flex-col justify-between 
+          } bg-white sm:shadow-md sm:p-6 p-5 w-full md:w-1/3 lg:w-1/4 border-r flex flex-col justify-between 
             sticky md:sticky overflow-auto`}
         >
           <div>
-            <h1 className="text-3xl font-bold text-emerald-600 mb-4">
+            <h1 className="text-3xl font-bold text-emerald-600 mb-2 sm:mb-4">
               {event.title}
             </h1>
-            <p className="flex items-center text-gray-600 mb-2">
+            <p className="flex items-center text-gray-600 mb-1 sm:mb-2">
               <FaMapMarkerAlt className="mr-2 text-emerald-600" />
               {event.locationName}
             </p>
-            <p className="flex items-center text-gray-600 mb-2">
+            <p className="flex items-center text-gray-600 mb-1 sm:mb-2">
               <FaCalendar className="mr-2 text-emerald-600" />
-              {format(formatDate(event.startDate), "MMMM d, yyyy")}
+              {formatDate(event.startDate)
+                ? format(formatDate(event.startDate)!, "MMMM d, yyyy")
+                : "Invalid Date"}
             </p>
-            <p className="flex items-center text-gray-600 mb-2">
+            <p className="flex items-center text-gray-600 mb-1 sm:mb-2">
               <FaClock className="mr-2 text-emerald-600" />
-              {format(formatDate(event.startDate), "h:mm a")} -{" "}
-              {format(formatDate(event.endDate), "h:mm a")}
+              {formatDate(event.startDate)
+                ? format(formatDate(event.startDate)!, "h:mm a")
+                : "Invalid Date"}
+              -{" "}
+              {formatDate(event.endDate)
+                ? format(formatDate(event.endDate)!, "h:mm a")
+                : "Invalid Date"}
             </p>
             {event.field && (
-              <p className="flex items-center text-gray-600 mb-2">
+              <p className="flex items-center text-gray-600 mb-1 sm:mb-2">
                 <FaFutbol className="mr-2 text-emerald-600" />
                 {event.field}
               </p>
             )}
-            <p className="flex items-center text-gray-600 mb-2">
+            <p className="flex items-center text-gray-600 mb-1 sm:mb-2">
               <FaDollarSign className="mr-2 text-emerald-600" />
               Player - ${event.cost?.toFixed(2)}
             </p>
             {event.includeGoalkeepers && (
-              <p className="flex items-center text-gray-600 mb-2">
+              <p className="flex items-center text-gray-600 mb-1 sm:mb-2">
                 <FaDollarSign className="mr-2 text-emerald-600" />
                 Goalkeeper -{" "}
                 {event.goalkeeperCost > 0
@@ -934,26 +958,20 @@ const EventDetails: React.FC<EventDetailsProps> = ({ showNotification }) => {
                   : "Free"}
               </p>
             )}
-            <div className="mt-6">
+            <div className="mt-2 sm:mt-6">
               <button
                 className="bg-emerald-600 hover:bg-emerald-700 text-white py-2 px-4 rounded w-full flex items-center justify-center"
-                onClick={() =>
-                  navigator.share({
-                    title: event.title,
-                    url: window.location.href,
-                  })
-                }
+                onClick={handleShare}
               >
                 <FaShareAlt className="mr-2" />
                 Share Event
               </button>
             </div>
 
-            <p className="text-gray-700 mt-6">
-              Please note that if you are joining the waitlist, you will not be
-              charged until you secure a spot. If someone cancels their spot and
-              you are next in line, you will be automatically charged as soon as
-              a spot becomes available
+            <p className="text-gray-700 mt-3 sm:mt-6">
+              Please note if you are joining the waitlist, you will not be
+              charged until a spot is secured. If a spot becomes avaliable and
+              you are next in line, you will charged automatically.
             </p>
           </div>
 
@@ -1025,7 +1043,16 @@ const EventDetails: React.FC<EventDetailsProps> = ({ showNotification }) => {
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1 p-6 pb-[192px] overflow-y-auto flex-grow sm:pb-6">
+        <main
+          className={`flex-1 p-6 overflow-y-auto flex-grow sm:pb-6 ${
+            (event.endDate && event.endDate.toDate() < new Date()) ||
+            event.status === "cancelled"
+              ? "pb-[16px]"
+              : canCancel
+              ? "pb-[104px]"
+              : "pb-[176px]"
+          }`}
+        >
           {/* Players and Waitlists */}
           <div className="mb-6">
             <h2 className="text-2xl font-semibold">Players</h2>
@@ -1126,15 +1153,18 @@ const EventDetails: React.FC<EventDetailsProps> = ({ showNotification }) => {
           <div className="mb-6">
             <h2 className="text-2xl font-semibold mb-4">Contact Information</h2>
             <p className="text-gray-600">
-              <strong>Organizer: </strong>Yousef Ouda
+              <strong>Organizer: </strong>
+              {organizerName || "Yousef Ouda"}
             </p>
             <p className="text-gray-600">
               <strong>Email: </strong>
               <a
-                href="mailto:ouda.yousef@gmail.com"
+                href={`mailto:${
+                  event.organizer?.email || "ouda.yousef@gmail.com"
+                }`}
                 className="text-blue-500 underline"
               >
-                ouda.yousef@gmail.com
+                {event.organizer?.email || "ouda.yousef@gmail.com"}
               </a>
             </p>
           </div>
@@ -1142,17 +1172,14 @@ const EventDetails: React.FC<EventDetailsProps> = ({ showNotification }) => {
       </div>
 
       {/* Sticky Footer for Smaller Screens */}
-      {event.endDate && event.endDate.toDate() > new Date() && (
-        <div className="sm:hidden fixed bottom-0 left-0 w-full bg-white shadow-lg p-4 flex flex-col gap-2 justify-center text-center">
-          {event.status === "cancelled" ? (
-            <div className="alert alert-danger">
-              This event has been cancelled.
-            </div>
-          ) : (
+      {event.endDate &&
+        event.endDate.toDate() > new Date() &&
+        event.status !== "cancelled" && (
+          <div className="sm:hidden fixed bottom-0 left-0 w-full bg-white shadow-lg p-3 flex flex-col gap-2 justify-center text-center">
             <>
               {canCancel ? (
                 <>
-                  <p className="mt-4 text-red-500 text-center">
+                  <p className="text-red-500 text-center">
                     You are already registered on one of the lists.
                   </p>
                   <button
@@ -1166,7 +1193,7 @@ const EventDetails: React.FC<EventDetailsProps> = ({ showNotification }) => {
               ) : (
                 <>
                   {event.endDate && event.endDate.toDate() > new Date() && (
-                    <p className="mt-4 text-gray-500">
+                    <p className="text-gray-500">
                       You can only cancel your registration up to 24 hours
                       before the event.
                     </p>
@@ -1193,19 +1220,18 @@ const EventDetails: React.FC<EventDetailsProps> = ({ showNotification }) => {
                 </>
               )}
             </>
-          )}
 
-          {user?.isAdmin && event.status !== "cancelled" && (
-            <button
-              className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-              onClick={() => setIsCancelEventModalOpen(true)}
-              disabled={isLoading}
-            >
-              Cancel Event & Refund
-            </button>
-          )}
-        </div>
-      )}
+            {user?.isAdmin && event.status !== "cancelled" && (
+              <button
+                className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                onClick={() => setIsCancelEventModalOpen(true)}
+                disabled={isLoading}
+              >
+                Cancel Event & Refund
+              </button>
+            )}
+          </div>
+        )}
 
       <CancelModal
         onCancel={handleCancelEvent}

@@ -7,8 +7,11 @@ import {
   browserLocalPersistence,
   browserSessionPersistence,
   sendPasswordResetEmail,
+  signInWithPopup,
+  GoogleAuthProvider,
+  db,
 } from "../firebase/firebaseConfig";
-import { useAuth } from "../components/Auth";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 
 interface LoginPageProps {
   setIsLoggedIn: (value: boolean) => void;
@@ -16,7 +19,6 @@ interface LoginPageProps {
 
 const LoginPage: React.FC<LoginPageProps> = ({ setIsLoggedIn }) => {
   const navigate = useNavigate();
-  const { loginWithGoogle } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -27,6 +29,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ setIsLoggedIn }) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+
     try {
       // Set persistence based on Remember Me
       const persistence = rememberMe
@@ -45,7 +48,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ setIsLoggedIn }) => {
         const expirationTime = new Date().getTime() + 10 * 60 * 1000; // 10 minutes
         localStorage.setItem("sessionExpiration", expirationTime.toString());
         setIsLoggedIn(true); // Set logged-in state to true
-        navigate("/"); // Redirect to home page on successful login and email is verified
       } else {
         setError(
           "Please verify your email before logging in. Check your inbox."
@@ -64,12 +66,34 @@ const LoginPage: React.FC<LoginPageProps> = ({ setIsLoggedIn }) => {
         auth,
         rememberMe ? browserLocalPersistence : browserSessionPersistence
       ); // Set persistence based on Remember Me
-      await loginWithGoogle(); // Call the loginWithGoogle method from AuthContext
+
+      const provider = new GoogleAuthProvider();
+      const userCredential = await signInWithPopup(auth, provider);
+      const user = userCredential.user;
+
+      // Check if user document exists in Firestore
+      const userDocRef = doc(db, "users", user.uid);
+      const userDoc = await getDoc(userDocRef);
+
+      // If the user document does not exist, create it
+      if (!userDoc.exists()) {
+        const displayName = user.displayName; // Get full name from Google profile
+        const [firstName, lastName] = displayName
+          ? displayName.split(" ")
+          : ["", ""]; // Split name into first and last names
+
+        // Create user document with additional information
+        await setDoc(userDocRef, {
+          firstName,
+          lastName,
+          email: user.email,
+        });
+      }
 
       const expirationTime = new Date().getTime() + 10 * 60 * 1000; // 10 minutes
       localStorage.setItem("sessionExpiration", expirationTime.toString());
+
       setIsLoggedIn(true); // Set logged-in state to true
-      navigate("/"); // Redirect to home page on successful login
     } catch (error) {
       setError("Failed to sign in with Google");
     }
@@ -94,7 +118,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ setIsLoggedIn }) => {
   return (
     <div className="flex flex-col items-center justify-center h-screen bg-gray-100">
       <div className="flex flex-col justify-center w-full sm:max-w-md bg-white sm:rounded sm:shadow-lg p-8 h-lvh sm:h-fit rounded-none shadow-none">
-        <h2 className="text-2xl font-bold text-center mb-4">Login</h2>
+        <h2 className="text-2xl font-bold text-center mb-6">Soccer Drop-In</h2>
         {error && <p className="text-red-500 text-center mb-4">{error}</p>}
 
         <form onSubmit={handleEmailLogin}>
@@ -117,13 +141,13 @@ const LoginPage: React.FC<LoginPageProps> = ({ setIsLoggedIn }) => {
             // autoComplete="new-password"
           />
 
-          <div className="flex items-center mb-4">
+          <div className="checkbox flex items-center mb-4">
             <input
               type="checkbox"
               id="rememberMe"
               checked={rememberMe}
               onChange={() => setRememberMe(!rememberMe)}
-              className="mr-2"
+              className="mr-2 bg-white"
             />
             <label htmlFor="rememberMe" className="text-gray-600">
               Remember Me
@@ -133,7 +157,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ setIsLoggedIn }) => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full p-3 bg-blue-600 text-white rounded hover:bg-blue-700"
+            className="w-full p-3 bg-emerald-600 text-white rounded hover:bg-emerald-700"
           >
             {loading ? "Logging in..." : "Login"}
           </button>
@@ -141,9 +165,14 @@ const LoginPage: React.FC<LoginPageProps> = ({ setIsLoggedIn }) => {
 
         <button
           onClick={handleGoogleLogin}
-          className="w-full mt-4 p-3 bg-red-500 text-white rounded hover:bg-red-600"
+          className="w-full mt-4 p-3 bg-white border border-gray-300 rounded-lg flex items-center justify-center hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
-          Sign in with Google
+          <img
+            src="/images/google.png" // Google logo URL
+            alt="Google Logo"
+            className="w-6 h-6 mr-3" // Logo styling, adjust size as necessary
+          />
+          <span className="text-gray-800 font-medium">Sign in with Google</span>
         </button>
 
         <p className="text-center mt-4">

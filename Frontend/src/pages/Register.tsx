@@ -87,7 +87,8 @@ const RegisterPage: React.FC = () => {
         });
       }
 
-      navigate("/"); // Redirect after successful sign-in
+      const expirationTime = new Date().getTime() + 10 * 60 * 1000; // 10 minutes
+      localStorage.setItem("sessionExpiration", expirationTime.toString());
     } catch (error) {
       setError((error as any).message);
     }
@@ -161,7 +162,7 @@ const RegisterPage: React.FC = () => {
           </div>
           <button
             type="submit"
-            className="bg-blue-500 text-white py-2 px-4 rounded w-full"
+            className="bg-emerald-600 text-white py-2 px-4 rounded w-full hover:bg-emerald-700"
           >
             Register
           </button>
@@ -173,9 +174,14 @@ const RegisterPage: React.FC = () => {
         </div>
         <button
           onClick={handleGoogleSignIn}
-          className="bg-red-500 text-white py-2 px-4 rounded w-full"
+          className="w-full p-3 bg-white border border-gray-300 rounded-lg flex items-center justify-center hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
-          Sign in with Google
+          <img
+            src="/images/google.png" // Google logo URL
+            alt="Google Logo"
+            className="w-6 h-6 mr-3" // Logo styling, adjust size as necessary
+          />
+          <span className="text-gray-800 font-medium">Sign in with Google</span>
         </button>
       </div>
     </div>

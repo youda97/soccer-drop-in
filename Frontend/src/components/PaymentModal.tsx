@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
+import axiosInstance from "../axiosInstance";
 import axios from "axios";
-import { DocumentData, getFirestore } from "firebase/firestore";
+import { DocumentData } from "firebase/firestore";
 import { useAuth } from "./Auth";
 import {
   FaCcVisa,
@@ -26,7 +27,6 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
   const { user } = useAuth(); // Get current logged-in user
   const stripe = useStripe();
   const elements = useElements();
-  const db = getFirestore();
 
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -41,14 +41,18 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
   useEffect(() => {
     if (isOpen && user) {
       // Only fetch when the modal is open
-      axios
+      axiosInstance
         .post("/createPaymentIntent", {
           user: user,
           amount: amount * 100, // Amount in cents
         })
-        .then((response) => {
-          setPaymentIntentId(response.data.paymentIntentId);
-        })
+        .then(
+          (response: {
+            data: { paymentIntentId: React.SetStateAction<string | null> };
+          }) => {
+            setPaymentIntentId(response.data.paymentIntentId);
+          }
+        )
         .catch(() => {
           setError("Failed to initialize payment.");
         });
@@ -59,7 +63,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
   useEffect(() => {
     const getSavedCards = async (userId: string) => {
       try {
-        const response = await axios.get(`/getSavedCards/${userId}`);
+        const response = await axiosInstance.get(`/getSavedCards/${userId}`);
         const savedCards = response.data;
         setSavedPaymentMethods(savedCards);
         // Here you can update your state or display the saved cards
@@ -106,14 +110,14 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
       if (paymentMethod) {
         // Step 2: Optionally save the card if saveCard is true
         if (saveCard) {
-          await axios.post("/savePaymentMethod", {
+          await axiosInstance.post("/savePaymentMethod", {
             user: user,
             paymentMethodId: paymentMethod.id,
           });
         }
 
         // Refetch saved cards after saving
-        const response = await axios.get(`/getSavedCards/${user.uid}`);
+        const response = await axiosInstance.get(`/getSavedCards/${user.uid}`);
         setSavedPaymentMethods(response.data);
 
         // Step 3: Pass PaymentIntent ID and PaymentMethod ID to parent
