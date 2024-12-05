@@ -141,6 +141,22 @@ const MainRoutes: React.FC = () => {
     return () => unsubscribe(); // Cleanup subscription on unmount
   }, [auth, navigate]);
 
+  useEffect(() => {
+    // Check for event ID in the current URL
+    const currentURL = window.location.pathname;
+    if (currentURL.startsWith("/event/")) {
+      localStorage.setItem("redirectAfterLogin", currentURL); // Store the event URL
+    }
+
+    if (isLoggedIn) {
+      const redirectURL = localStorage.getItem("redirectAfterLogin");
+      if (redirectURL) {
+        localStorage.removeItem("redirectAfterLogin"); // Clear it to prevent repeated redirects
+        navigate(redirectURL); // Redirect to the stored URL
+      }
+    }
+  }, [isLoggedIn]);
+
   const shouldShowFooter =
     isLoggedIn && !window.location.pathname.includes("/event/");
 
