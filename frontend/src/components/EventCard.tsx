@@ -127,15 +127,17 @@ const EventCard: React.FC<EventCardProps> = ({ event }) => {
             </p>
 
             {/* Book/Register Button */}
-            <Link
-              to={`/event/${event.id}`}
-              className="hidden sm:flex text-emerald-600 bg-white hover:bg-gray-100 hover:text-emerald-700 px-4 py-2 rounded-md text-md font-semibold transition-colors duration-200"
-            >
-              {(event.endDate && event.endDate.toDate() < new Date()) ||
-              event.status === "cancelled"
-                ? "More Info"
-                : "Register"}
-            </Link>
+            {!isSmallScreen && (
+              <Link
+                to={`/event/${event.id}`}
+                className="hidden sm:flex text-emerald-600 bg-white hover:bg-gray-100 hover:text-emerald-700 px-4 py-2 rounded-md text-md font-semibold transition-colors duration-200"
+              >
+                {(event.endDate && event.endDate.toDate() < new Date()) ||
+                event.status === "cancelled"
+                  ? "More Info"
+                  : "Register"}
+              </Link>
+            )}
           </div>
 
           {/* Full-Width Expand/Collapse Button */}
