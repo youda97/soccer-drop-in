@@ -508,8 +508,10 @@ const EventDetails: React.FC<EventDetailsProps> = ({ showNotification }) => {
 
       const list = [...eventData[listType], promotedUserId];
       const waitList = eventData[waitlistType].slice(1);
+      const chargedAmount =
+        listType === "players" ? eventData.cost : eventData.goalkeeperCost;
 
-      if (promotedUserId && eventData.goalkeeperCost > 0) {
+      if (promotedUserId && chargedAmount > 0) {
         const paymentIntentId =
           eventData.payments[promotedUserId].paymentIntentId;
         if (!paymentIntentId) {
@@ -723,7 +725,7 @@ const EventDetails: React.FC<EventDetailsProps> = ({ showNotification }) => {
     }
 
     if (
-      eventData["players"].includes(userId) ||
+      (eventData["players"].includes(userId) && eventData.cost > 0) ||
       (eventData["goalkeepers"].includes(userId) &&
         eventData.goalkeeperCost > 0)
     ) {
@@ -1248,14 +1250,18 @@ const EventDetails: React.FC<EventDetailsProps> = ({ showNotification }) => {
         isModalOpen={isCancelModalOpen}
         title="Confirm Cancellation"
         description={`Are you sure you want to cancel your spot for this event? 
-            Your spot will be released, and a refund will be processed. 
+            Your spot will be released, and a refund will be processed.
+
             Please note that the processing fee of $${
               user && event["players"].includes(user.uid)
-                ? typeof event.cost === "number" && !isNaN(event.cost)
+                ? typeof event.cost === "number" &&
+                  !isNaN(event.cost) &&
+                  event.cost > 0
                   ? (event.cost * 0.029 + 0.3).toFixed(2)
                   : "0.00" // Default to '0.00' if the cost is invalid
                 : typeof event.goalkeeperCost === "number" &&
-                  !isNaN(event.goalkeeperCost)
+                  !isNaN(event.goalkeeperCost) &&
+                  event.goalkeeperCost > 0
                 ? (event.goalkeeperCost * 0.029 + 0.3).toFixed(2)
                 : "0.00" // Default to '0.00' if the goalkeeper cost is invalid
             } 
