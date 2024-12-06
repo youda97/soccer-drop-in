@@ -16,7 +16,7 @@ import CreateEvent from "./pages/CreateEvent";
 import { AuthProvider, useAuth } from "./components/Auth";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Notification from "./components/Notification";
-import { getAuth, onAuthStateChanged } from "firebase/auth";
+import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
 import VerifyEmail from "./pages/VerifyEmail";
 import YourEvents from "./pages/YourEvents";
 import Footer from "./components/Footer";
@@ -44,9 +44,17 @@ const MainRoutes: React.FC = () => {
     isVisible: false,
   });
 
-  const handleLogout = () => {
-    setIsLoggedIn(false);
-    showNotification("You are logged out");
+  const handleLogout = async () => {
+    const auth = getAuth();
+    try {
+      await signOut(auth); // Sign out from Firebase
+      setIsLoggedIn(false);
+      localStorage.removeItem("sessionExpiration"); // Clear session storage
+      showNotification("You are logged out");
+      navigate("/"); // Redirect to login page
+    } catch (error) {
+      console.error("Error logging out:", error);
+    }
   };
 
   // Function to show a notification
@@ -77,14 +85,10 @@ const MainRoutes: React.FC = () => {
     // Check for session expiration on page load
     const checkSessionExpiration = () => {
       const expirationTime = localStorage.getItem("sessionExpiration");
-      if (expirationTime) {
-        const currentTime = new Date().getTime();
-        if (currentTime > parseInt(expirationTime)) {
-          // If the session is expired, log out and redirect to the login page
-          localStorage.removeItem("sessionExpiration"); // Clear the expiration time
-          handleLogout();
-          navigate("/");
-        }
+      const currentTime = new Date().getTime();
+
+      if (expirationTime && currentTime > parseInt(expirationTime)) {
+        handleLogout(); // Trigger logout and redirect
       }
     };
 
